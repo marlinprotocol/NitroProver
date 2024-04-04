@@ -1,3 +1,15 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/P384"]
+	path = lib/P384
+	url = https://github.com/marlinprotocol/P384
+[submodule "lib/SolSha2Ext"]
+	path = lib/SolSha2Ext
+	url = https://github.com/marlinprotocol/SolSha2Ext
+[submodule "lib/solidity-cbor"]
+	path = lib/solidity-cbor
+	url = https://github.com/marlinprotocol/solidity-cbor
+[submodule "lib/buffer"]
+	path = lib/buffer
+	url = https://github.com/ensdomains/buffer
