@@ -9,8 +9,8 @@ contract CounterTest is Test {
     bytes attestation_doc;
 
     function setUp() public {
-        nitroProverTest = new TestMock();
         vm.warp(1708930774);
+        nitroProverTest = new TestMock();
         attestation_doc = vm.readFileBinary("./test/nitro-attestation/sample_attestation.bin");
     }
 
@@ -34,7 +34,7 @@ contract CounterTest is Test {
             hex"861ca1d00bed2c7d8fa0bf5aa11fcb6a002fe729f3123477d470299fc5eb72ae886d33c3d73216064f9dc15e3f7251e2",
             hex"4f646fa18676065e77ed5b03b51755e30cf9ce450c2f6ae58b0e31e6308d58f576ea295d8579c1bf27db1de8fda9dd9a"
         );
-        bytes memory recent_attestation_doc = vm.readFileBinary("./script/attestation.bin");
+        bytes memory recent_attestation_doc = vm.readFileBinary("./test/nitro-attestation/sample_attestation2.bin");
         nitroProverTest.t_verifyAttestation(recent_attestation_doc, pcrs, 365 days);
         vm.warp(1708930774);
     }

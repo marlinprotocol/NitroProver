@@ -30,10 +30,11 @@ contract NitroProverScript is Script {
 
     function run() public {
         uint256 deployerPrivKey = vm.envUint("ARB_SEPOLIA_KEY");
-        vm.broadcast(deployerPrivKey);
+        vm.startBroadcast(deployerPrivKey);
         console.logBytes(attestation_doc);
         console.logBytes(pcrs);
         console.log(365 days);
         nitroProver.verifyAttestation{gas: 254805674}(attestation_doc, pcrs, 365 days);
+        vm.stopBroadcast();
     }
 }
