@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { console2 } from "forge-std/console2.sol";
+
 import { Curve384 } from "marlinprotocol/P384/Curve384.sol";
 import { Sha2Ext } from "marlinprotocol/SolSha2Ext/Sha2Ext.sol";
 import { LibBytes } from "marlinprotocol/SolSha2Ext/LibBytes.sol";
@@ -16,7 +18,7 @@ import { BytesUtils } from "./lib/BytesUtils.sol";
 // @dev Implements verification based on AWS nitro attestation process at 
 //      https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html and
 //      https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md
-contract NitroProver {
+contract NitroProver is Curve384 {
     using Asn1Decode for bytes;
 
     // @dev download the root CA cert for AWS nitro enclaves from https://aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip
@@ -36,9 +38,9 @@ contract NitroProver {
     bytes public constant SECP_384_R1_OID = hex"2b81040022";
 
     // certHash -> pub key that verified cert
-    mapping(bytes32 => bytes) verifiedBy;
+    mapping(bytes32 => bytes) public verifiedBy;
     // certHash -> pub key of the cert
-    mapping(bytes32 => bytes) certPubKey;
+    mapping(bytes32 => bytes) public certPubKey;
 
     constructor() {
         bytes memory emptyPubKey;
@@ -49,9 +51,9 @@ contract NitroProver {
 
     function verifyCert(bytes memory certificate, bytes32 parentCertHash) public {
         bytes memory parentPubKey = certPubKey[parentCertHash];
-        require(parentPubKey.length != 0, "Parent cert not verified");
+        require(parentPubKey.length != 0, "VC1");
         bytes32 certHash = keccak256(certificate);
-        require(certPubKey[certHash].length == 0, "certificate already verified");
+        require(certPubKey[certHash].length == 0, "VC2");
         certPubKey[certHash] = _verifyCert(certificate, parentPubKey);
         verifiedBy[certHash] = parentPubKey;
         emit CertificateVerified(certHash, certificate, certPubKey[certHash], parentCertHash, parentPubKey);
@@ -296,12 +298,12 @@ contract NitroProver {
         require(pk.length == 97, "invalid pub key length");
         require(sig.length == 96, "invalid sig length");
         (bytes16 mhi, bytes32 mlo) = Sha2Ext.sha384(message);
-        Curve384.C384Elm memory pub = _parsePubKey(pk);
+        C384Elm memory pub = _parsePubKey(pk);
         (uint256 rhi, uint256 rlo, uint256 shi, uint256 slo) = _parseSig(sig);
-        require(Curve384.verify(pub, uint256(bytes32(abi.encodePacked(bytes16(0), mhi))), uint256(mlo), rhi, rlo, shi, slo), "invalid sig");
+        require(verify(pub, uint256(bytes32(abi.encodePacked(bytes16(0), mhi))), uint256(mlo), rhi, rlo, shi, slo), "invalid sig");
     }
 
-    function _parsePubKey(bytes memory pk) private pure returns(Curve384.C384Elm memory pub) {
+    function _parsePubKey(bytes memory pk) private pure returns(C384Elm memory pub) {
         pub.xhi = uint256(bytes32(abi.encodePacked(bytes16(0), bytes16(LibBytes.slice(pk, 1, 17)))));
         pub.xlo = uint256(bytes32(LibBytes.slice(pk, 17, 49)));
         pub.yhi = uint256(bytes32(abi.encodePacked(bytes16(0), bytes16(LibBytes.slice(pk, 49, 65)))));
