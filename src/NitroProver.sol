@@ -59,7 +59,7 @@ contract NitroProver is Curve384 {
         emit CertificateVerified(certHash, certificate, certPubKey[certHash], parentCertHash, parentPubKey);
     }
 
-    function verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) public {
+    function verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) public returns(bytes memory, bytes memory) {
         /* 
         https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md#31-cose-and-cbor
         Attestation document is an array of 4 elements
@@ -70,10 +70,11 @@ contract NitroProver is Curve384 {
             signature:   This field contains the computed signature value.
         ]
         */
+        
+        // GAS: Attestation decode gas ~62k
         bytes[] memory attestation_decoded = CBORDecoding.decodeArray(attestation);
 
-        // TODO: find CBOR tag and assert = 18 which represents COSE_Sign1
-
+        // TODO: confirm that the attestation is untagged CBOR structure
         // https://datatracker.ietf.org/doc/html/rfc8152#section-3.1
         // Protected header for COSE_Sign1
         bytes[2][] memory protected_header = CBORDecoding.decodeMapping(attestation_decoded[0]);
@@ -81,6 +82,8 @@ contract NitroProver is Curve384 {
         require(ByteParser.bytesToUint64(protected_header[0][0]) == 1, "Not algo flag");
         // Algorithm should be ECDSA w/ SHA-384
         require(ByteParser.bytesToNegativeInt128(protected_header[0][1]) == -35, "Incorrect algorithm");
+        // Protected header should just have sig algo flag
+        require(protected_header.length == 1, "Only algo flag should be present");
 
         // Unprotected header for COSE_Sign1
         bytes[2][] memory unprotected_header = CBORDecoding.decodeMapping(attestation_decoded[1]);
@@ -88,12 +91,14 @@ contract NitroProver is Curve384 {
         require(unprotected_header.length == 0, "Unprotected header should be empty");
 
         bytes memory payload = attestation_decoded[2];
-        bytes memory pubKey = _processAttestationDoc(payload, PCRs, max_age);
+        (bytes memory pubKey, bytes memory enclaveKey, bytes memory userData) = _processAttestationDoc(payload, PCRs, max_age);
 
         // verify COSE signature as per https://www.rfc-editor.org/rfc/rfc9052.html#section-4.4
         bytes memory attestationSig = attestation_decoded[3];
 
         // create COSE structure
+        // GAS: COSE structure creation gas ~42.7k
+        // TODO: set CBOR length appropriately
         CBOR.CBORBuffer memory buf = CBOR.create(payload.length*2);
         CBOR.startFixedArray(buf, 4);
         // context to be written as Signature1 as COSE_Sign1 is used https://www.rfc-editor.org/rfc/rfc9052.html#section-4.4-2.1.1
@@ -106,42 +111,76 @@ contract NitroProver is Curve384 {
         CBOR.writeBytes(buf, payload);
 
         _processSignature(attestationSig, pubKey, buf.buf.buf);
+        return (enclaveKey, userData);
     }
 
-    function _processAttestationDoc(bytes memory attestation_payload, bytes memory expected_PCRs, uint256 max_age) internal view returns(bytes memory) {
+    function _processAttestationDoc(bytes memory attestation_payload, bytes memory expected_PCRs, uint256 max_age) internal view returns(bytes memory, bytes memory, bytes memory) {
         // TODO: validate if this check is expected? https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md?plain=1#L168
         require(attestation_payload.length <= 2**15, "Attestation too long");
 
         // validations as per https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md#32-syntactical-validation
-        // TODO: optimize the lookup for fields
         // issuing Nitro hypervisor module ID
-        bytes memory moduleId = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("module_id"));
+        // GAS: decoding takes ~173.5k gas
+        bytes[2][] memory attestation_structure = CBORDecoding.decodeMapping(attestation_payload);
+        bytes memory moduleId;
+        bytes memory rawTimestamp;
+        bytes memory digest;
+        bytes memory rawPcrs;
+        bytes memory certificate;
+        bytes memory cabundle;
+        bytes memory enclave_pub_key;
+        bytes memory userData;
+
+        for(uint256 i=0; i < attestation_structure.length; i++) {
+            bytes32 keyHash = keccak256(attestation_structure[i][0]);
+            if(keyHash == keccak256(bytes("module_id"))) {
+                moduleId = attestation_structure[i][1];
+                continue;
+            }
+            if(keyHash == keccak256(bytes("timestamp"))) {
+                rawTimestamp = attestation_structure[i][1];
+                continue;
+            }
+            if(keyHash == keccak256(bytes("digest"))) {
+                digest = attestation_structure[i][1];
+                continue;
+            }
+            if(keyHash == keccak256(bytes("pcrs"))) {
+                rawPcrs = attestation_structure[i][1];
+                continue;
+            }
+            if(keyHash == keccak256(bytes("certificate"))) {
+                certificate = attestation_structure[i][1];
+                continue;
+            }
+            if(keyHash == keccak256(bytes("cabundle"))) {
+                cabundle = attestation_structure[i][1];
+                continue;
+            }
+            if(keyHash == keccak256(bytes("public_key"))) {
+                enclave_pub_key = attestation_structure[i][1];
+                continue;
+            }
+            if(keyHash == keccak256(bytes("user_data"))) {
+                userData = attestation_structure[i][1];
+                continue;
+            }
+        }
+
         require(moduleId.length != 0, "Invalid module id");
 
-        // time when document was created
-        bytes memory rawTimestamp = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("timestamp"));
         uint64 timestamp = ByteParser.bytesToUint64(rawTimestamp);
         require(timestamp != 0, "invalid timestamp");
         require(timestamp + max_age > block.timestamp, "attestation too old");
 
-        bytes memory digest = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("digest"));
         require(bytes32(digest) == bytes32("SHA384"), "invalid digest algo");
 
-        bytes memory rawPcrs = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("pcrs"));
         bytes[2][] memory pcrs = CBORDecoding.decodeMapping(rawPcrs);
         _validatePCRs(pcrs, expected_PCRs);
 
-        bytes memory certificate = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("certificate"));
-        bytes memory cabundle = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("cabundle"));
-        
         bytes memory pubKey = _verifyCerts(certificate, cabundle);
 
-        // TODO: handle reverts if key not found as this is optional field
-        bytes memory enclave_pub_key = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("public_key"));
-        // TODO: handle reverts if key not found as this is optional field
-        bytes memory userData = CBORDecoding.decodeMappingGetValue(attestation_payload, bytes("user_data"));
-
-        return pubKey;
+        return (pubKey, enclave_pub_key, userData);
     }
 
     function _validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) internal view {
