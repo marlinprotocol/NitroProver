@@ -19,8 +19,12 @@ contract TestMock is NitroProver {
         _processSignature(sig, pubKey, payload);
     }
 
-    function t_validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) external {
+    function t_validatePCRs(bytes[] memory pcrs, bytes memory expected_pcrs) external {
         _validatePCRs(pcrs, expected_pcrs);
+    }
+
+    function t_orderPCRs(bytes[2][] memory pcrs) external returns (bytes[] memory) {
+        return _orderPCRs(pcrs);
     }
 
     function t_verifyCerts(bytes memory certificate, bytes memory rawCAbundle) external {

@@ -3,6 +3,8 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc = '0.8.24'
+optimizer = true
+optimizer-runs = 10_000_000
 fs_permissions = [
     { access = "read", path = "./test/nitro-attestation"},
     { access = "read", path = "./script/attestation.bin"}

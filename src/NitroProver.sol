@@ -23,7 +23,7 @@ contract NitroProver is Curve384 {
 
     // @dev download the root CA cert for AWS nitro enclaves from https://aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip
     // @dev convert the base64 encoded pub key into hex to get the cert below
-    bytes public constant ROOT_CA_CERT = hex"3082021130820196a003020102021100f93175681b90afe11d46ccb4e4e7f856300a06082a8648ce3d0403033049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c61766573301e170d3139313032383133323830355a170d3439313032383134323830355a3049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b8104002203620004fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4a3423040300f0603551d130101ff040530030101ff301d0603551d0e041604149025b50dd90547e796c396fa729dcf99a9df4b96300e0603551d0f0101ff040403020186300a06082a8648ce3d0403030369003066023100a37f2f91a1c9bd5ee7b8627c1698d255038e1f0343f95b63a9628c3d39809545a11ebcbf2e3b55d8aeee71b4c3d6adf3023100a2f39b1605b27028a5dd4ba069b5016e65b4fbde8fe0061d6a53197f9cdaf5d943bc61fc2beb03cb6fee8d2302f3dff6";
+    bytes constant ROOT_CA_CERT = hex"3082021130820196a003020102021100f93175681b90afe11d46ccb4e4e7f856300a06082a8648ce3d0403033049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c61766573301e170d3139313032383133323830355a170d3439313032383134323830355a3049310b3009060355040613025553310f300d060355040a0c06416d617a6f6e310c300a060355040b0c03415753311b301906035504030c126177732e6e6974726f2d656e636c617665733076301006072a8648ce3d020106052b8104002203620004fc0254eba608c1f36870e29ada90be46383292736e894bfff672d989444b5051e534a4b1f6dbe3c0bc581a32b7b176070ede12d69a3fea211b66e752cf7dd1dd095f6f1370f4170843d9dc100121e4cf63012809664487c9796284304dc53ff4a3423040300f0603551d130101ff040530030101ff301d0603551d0e041604149025b50dd90547e796c396fa729dcf99a9df4b96300e0603551d0f0101ff040403020186300a06082a8648ce3d0403030369003066023100a37f2f91a1c9bd5ee7b8627c1698d255038e1f0343f95b63a9628c3d39809545a11ebcbf2e3b55d8aeee71b4c3d6adf3023100a2f39b1605b27028a5dd4ba069b5016e65b4fbde8fe0061d6a53197f9cdaf5d943bc61fc2beb03cb6fee8d2302f3dff6";
     bytes32 public constant ROOT_CA_CERT_HASH = keccak256(ROOT_CA_CERT);
     // OID 1.2.840.10045.4.3.3 represents {iso(1) member-body(2) us(840) ansi-x962(10045) signatures(4) ecdsa-with-SHA2(3) ecdsa-with-SHA384(3)}
     // which essentially means the signature algorithm is Elliptic curve Digital Signature Algorithm (DSA) coupled with the Secure Hash Algorithm 384 (SHA384) algorithm
@@ -51,9 +51,9 @@ contract NitroProver is Curve384 {
 
     function verifyCert(bytes memory certificate, bytes32 parentCertHash) public {
         bytes memory parentPubKey = certPubKey[parentCertHash];
-        require(parentPubKey.length != 0, "VC1");
+        require(parentPubKey.length != 0, "invalid parent cert hash");
         bytes32 certHash = keccak256(certificate);
-        require(certPubKey[certHash].length == 0, "VC2");
+        require(certPubKey[certHash].length == 0, "cert already verified");
         certPubKey[certHash] = _verifyCert(certificate, parentPubKey);
         verifiedBy[certHash] = parentPubKey;
         emit CertificateVerified(certHash, certificate, certPubKey[certHash], parentCertHash, parentPubKey);
@@ -83,12 +83,12 @@ contract NitroProver is Curve384 {
         // Algorithm should be ECDSA w/ SHA-384
         require(ByteParser.bytesToNegativeInt128(protected_header[0][1]) == -35, "Incorrect algorithm");
         // Protected header should just have sig algo flag
-        require(protected_header.length == 1, "Only algo flag should be present");
+        require(protected_header.length == 1, "Only algo flag allowed");
 
         // Unprotected header for COSE_Sign1
         bytes[2][] memory unprotected_header = CBORDecoding.decodeMapping(attestation_decoded[1]);
         // Unprotected header should be empty
-        require(unprotected_header.length == 0, "Unprotected header should be empty");
+        require(unprotected_header.length == 0, "Unprotected header isnt empty"); // 
 
         bytes memory payload = attestation_decoded[2];
         (bytes memory pubKey, bytes memory enclaveKey, bytes memory userData) = _processAttestationDoc(payload, PCRs, max_age);
@@ -115,7 +115,7 @@ contract NitroProver is Curve384 {
     }
 
     function _processAttestationDoc(bytes memory attestation_payload, bytes memory expected_PCRs, uint256 max_age) internal view returns(bytes memory, bytes memory, bytes memory) {
-        // TODO: validate if this check is expected? https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md?plain=1#L168
+        // https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md?plain=1#L168
         require(attestation_payload.length <= 2**15, "Attestation too long");
 
         // validations as per https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md#32-syntactical-validation
@@ -176,16 +176,18 @@ contract NitroProver is Curve384 {
         require(bytes32(digest) == bytes32("SHA384"), "invalid digest algo");
 
         bytes[2][] memory pcrs = CBORDecoding.decodeMapping(rawPcrs);
-        _validatePCRs(pcrs, expected_PCRs);
+
+        _validatePCRs(_orderPCRs(pcrs), expected_PCRs);
 
         bytes memory pubKey = _verifyCerts(certificate, cabundle);
 
         return (pubKey, enclave_pub_key, userData);
     }
 
-    function _validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) internal view {
+    function _validatePCRs(bytes[] memory pcrs, bytes memory expected_pcrs) internal view {
         require(pcrs.length != 0, "no pcr specified");
         require(pcrs.length <= 32, "only 32 pcrs allowed");
+        // first 4 bytes represent the pcr values to check and hence should be present
         require(expected_pcrs.length >= 4, "pcrs to check invalid");
         // flags that represent PCR indices to check starts from LSB
         // expected_pcrs looks like PCR32Flag PCR31Flag PCR30Flag ...... PCR2Flag PCR1Flag PCR0Flag <list PCRs with flag enabled starting from PCR0>
@@ -195,12 +197,19 @@ contract NitroProver is Curve384 {
             if(expected_pcrs_pointer >= expected_pcrs.length && pcrsToCheck == 0) break; // short circuit
             if(pcrsToCheck % 2 == 1) {
                 bytes memory expected_pcr = LibBytes.slice(expected_pcrs, expected_pcrs_pointer, expected_pcrs_pointer += 48);
-                // TODO: do not assume pcrs map is ordered
-                require(uint8(bytes1(pcrs[i][0])) == uint8(i), "PCRs not orderd");
-                require(keccak256(pcrs[i][1]) == keccak256(expected_pcr), "PCR not matching");
+                require(keccak256(pcrs[i]) == keccak256(expected_pcr), "PCR not matching");
             }
             pcrsToCheck = pcrsToCheck >> 1;
         }
+    }
+
+    function _orderPCRs(bytes[2][] memory pcrs) internal view returns(bytes[] memory) {
+        bytes[] memory ordered_pcrs = new bytes[](pcrs.length);
+        for(uint256 i=0; i < pcrs.length; i++) {
+            uint256 pcr_index = uint8(bytes1(pcrs[i][0]));
+            ordered_pcrs[pcr_index] = pcrs[i][1];
+        }
+        return ordered_pcrs;
     }
 
     function _verifyCerts(bytes memory certificate, bytes memory rawCAbundle) internal view returns(bytes memory) {
@@ -252,7 +261,7 @@ contract NitroProver is Curve384 {
         return certPubKey;
     }
 
-    function pad(bytes memory b, uint256 l) public pure returns(bytes memory) {
+    function pad(bytes memory b, uint256 l) internal pure returns(bytes memory) {
         require(b.length <= l, "");
         if(b.length == l) return b;
         bytes memory padding = new bytes(l - b.length);
@@ -305,7 +314,7 @@ contract NitroProver is Curve384 {
         return subjectPubKey;
     }
 
-    function yymmddhhmmssTots(bytes memory time) public pure returns(uint256) {
+    function yymmddhhmmssTots(bytes memory time) internal pure returns(uint256) {
         uint256 year = bytesToUint(abi.encodePacked(BytesUtils.readBytesN(time, 0, 2))) + 2000;
         uint256 month = bytesToUint(abi.encodePacked(BytesUtils.readBytesN(time, 2, 2)));
         uint256 day = bytesToUint(abi.encodePacked(BytesUtils.readBytesN(time, 4, 2)));
@@ -316,7 +325,7 @@ contract NitroProver is Curve384 {
         return ts;
     }
 
-    function bytesToUint(bytes memory b) public pure returns (uint) {
+    function bytesToUint(bytes memory b) internal pure returns (uint) {
         uint result = 0;
         for (uint256 i = 0; i < b.length; i++) {
             uint256 c = uint256(uint8(b[i]));
@@ -328,7 +337,8 @@ contract NitroProver is Curve384 {
     }
 
     function _processSignature(bytes memory sig, bytes memory pubKey, bytes memory payload) internal view {
-        // TODO: Why are 32 and 64 mentioned as possible lengths? https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md?plain=1#L169
+        // https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md?plain=1#L169
+        // Note: current implementation uses ES384 so only 96 byte signatures.
         require(sig.length == 96, "signature too long");
         verifyES384WithSHA384(pubKey, payload, sig);
     }

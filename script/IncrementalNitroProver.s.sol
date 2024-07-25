@@ -19,14 +19,14 @@ contract NitroProverScript is Script {
 
         console.log(address(nitroProver));
 
-        // curl -v 13.200.82.143:1300 -o attestation.bin
+        // curl -v 13.201.207.60:1300 -o attestation.bin
         attestation_doc = vm.readFileBinary("./script/attestation.bin");
         pcrs = abi.encodePacked(
             hex"00000017", // pcr index starting from LSB. This represents PCR0,PCR1,PCR2,PCR4
-            hex"ea6ff0cc81650a6a2e5e6b009b058d684600ea08006beafb60a693e2eeb362e3a06039ff8341f0715543672c5c9ffa61", 
-            hex"41245c1ef3514f08230e85fd21d97dee1eb2c3cfbca59cabd15b8858bc45c019acbbf1ec737cec472ffd0b0d8040e4ba", 
-            hex"861ca1d00bed2c7d8fa0bf5aa11fcb6a002fe729f3123477d470299fc5eb72ae886d33c3d73216064f9dc15e3f7251e2",
-            hex"4f646fa18676065e77ed5b03b51755e30cf9ce450c2f6ae58b0e31e6308d58f576ea295d8579c1bf27db1de8fda9dd9a"
+            hex"189038eccf28a3a098949e402f3b3d86a876f4915c5b02d546abb5d8c507ceb1755b8192d8cfca66e8f226160ca4c7a6", 
+            hex"5d3938eb05288e20a981038b1861062ff4174884968a39aee5982b312894e60561883576cc7381d1a7d05b809936bd16", 
+            hex"6c3ef363c488a9a86faa63a44653fd806e645d4540b40540876f3b811fc1bceecf036a4703f07587c501ee45bb56a1aa",
+            hex"45ff8769d16a46d16fcf4b872b546b02d587267a16d2325fb968453c0e36e243d04389e45466191967ceb1978012a9cf"
         );
         bytes memory payload = CBORDecoding.decodeArray(attestation_doc)[2];
         bytes memory certificate = CBORDecoding.decodeMappingGetValue(payload, bytes("certificate"));
