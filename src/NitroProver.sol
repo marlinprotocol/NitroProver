@@ -46,7 +46,7 @@ contract NitroProver is Curve384 {
         certManager.verifyCert(certificate, parentCertHash);
     }
 
-    function verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) public returns(bytes memory, bytes memory) {
+    function verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) public view returns(bytes memory, bytes memory) {
         (bytes memory enclaveKey, bytes memory userData, bytes memory rawPcrs) =
             verifyAttestation(attestation, max_age);
         bytes[2][] memory pcrs = CBORDecoding.decodeMapping(rawPcrs);
@@ -54,7 +54,7 @@ contract NitroProver is Curve384 {
         return (enclaveKey, userData);
     }
 
-    function verifyAttestation(bytes memory attestation, uint256 max_age) public returns(bytes memory, bytes memory, bytes memory) {
+    function verifyAttestation(bytes memory attestation, uint256 max_age) public view returns(bytes memory, bytes memory, bytes memory) {
         /* 
         https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md#31-cose-and-cbor
         Attestation document is an array of 4 elements
@@ -176,7 +176,7 @@ contract NitroProver is Curve384 {
         return (pubKey, enclave_pub_key, userData, rawPcrs);
     }
 
-    function validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) public view {
+    function validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) public pure {
         require(pcrs.length != 0, "no pcr specified");
         require(pcrs.length <= 32, "only 32 pcrs allowed");
         require(expected_pcrs.length >= 4, "pcrs to check invalid");

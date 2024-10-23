@@ -68,21 +68,20 @@ contract CertManager is Curve384 {
         return pubKey;
     }
 
-    function _verifyCert(bytes memory certificate, bytes memory pubKey) internal view returns(bytes memory) {
+    function _verifyCert(bytes memory certificate, bytes memory parentPubKey) internal view returns(bytes memory) {
         bytes32 certHash = keccak256(certificate);
         // skip verification if already verified
         if(certPubKey[certHash].length != 0) {
-            bytes memory parentPubKey = verifiedBy[certHash];
-            require(keccak256(parentPubKey) == keccak256(pubKey), "parent incorrect");
+            require(keccak256(verifiedBy[certHash]) == keccak256(parentPubKey), "parent incorrect");
             return certPubKey[certHash];
         }
 
         uint256 root = certificate.root();
         uint256 tbsCertPtr = certificate.firstChildOf(root);
         // TODO: extract and check issuer and subject hash
-        bytes memory certPubKey;
-        (, , certPubKey) = _parseTbs(certificate, tbsCertPtr);
-        if(pubKey.length == 0 && certHash == ROOT_CA_CERT_HASH) return certPubKey;
+        bytes memory pubKey;
+        (, , pubKey) = _parseTbs(certificate, tbsCertPtr);
+        if(parentPubKey.length == 0 && certHash == ROOT_CA_CERT_HASH) return pubKey;
         bytes memory tbs = certificate.allBytesAt(tbsCertPtr);
         uint256 sigAlgoPtr = certificate.nextSiblingOf(tbsCertPtr);
         require(keccak256(certificate.bytesAt(sigAlgoPtr)) == keccak256(CERT_ALGO_OID), "invalid cert sig algo");
@@ -97,8 +96,8 @@ contract CertManager is Curve384 {
 
         bytes memory sigPacked = abi.encodePacked(pad(sigX, 48), pad(sigY, 48));
 
-        verifyES384WithSHA384(pubKey, tbs, sigPacked);
-        return certPubKey;
+        verifyES384WithSHA384(parentPubKey, tbs, sigPacked);
+        return pubKey;
     }
 
     function pad(bytes memory b, uint256 l) public pure returns(bytes memory) {
@@ -137,7 +136,7 @@ contract CertManager is Curve384 {
         pubKey = _verifyTbs2(certificate, certificate.nextSiblingOf(subjectPtr));
     }
 
-    function _verifyTbs2(bytes memory certificate, uint256 subjectPublicKeyInfoPtr) internal view returns(bytes memory) {
+    function _verifyTbs2(bytes memory certificate, uint256 subjectPublicKeyInfoPtr) internal pure returns(bytes memory) {
         uint256 pubKeyAlgoPtr = certificate.firstChildOf(subjectPublicKeyInfoPtr);
         uint256 pubKeyAlgoIdPtr = certificate.firstChildOf(pubKeyAlgoPtr);
         require(keccak256(certificate.bytesAt(pubKeyAlgoIdPtr)) == keccak256(EC_PUB_KEY_OID), "Cert Algo id Incorrect");
@@ -148,7 +147,7 @@ contract CertManager is Curve384 {
         uint256 subjectPublicKeyPtr = certificate.nextSiblingOf(pubKeyAlgoPtr);
         bytes memory subjectPubKey = certificate.bitstringAt(subjectPublicKeyPtr);
 
-        uint256 extensionsPtr = certificate.nextSiblingOf(subjectPublicKeyInfoPtr);
+        // uint256 extensionsPtr = certificate.nextSiblingOf(subjectPublicKeyInfoPtr);
         // TODO: verify extensions based on 3.2.3.2 section in https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md#32-syntactical-validation
 
         return subjectPubKey;

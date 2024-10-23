@@ -8,21 +8,21 @@ import "../NitroProver.sol";
 contract TestMock is NitroProver {
     constructor(CertManager certManager) NitroProver(certManager) {}
 
-    function t_verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) external {
+    function t_verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) external view {
         verifyAttestation(attestation, PCRs, max_age);
     }
 
-    function t_processAttestationDoc(bytes memory attestation_payload, bytes memory expected_PCRs, uint256 max_age) external {
+    function t_processAttestationDoc(bytes memory attestation_payload, bytes memory expected_PCRs, uint256 max_age) external view {
         (,,, bytes memory rawPcrs) = _processAttestationDoc(attestation_payload, max_age);
         bytes[2][] memory pcrs = CBORDecoding.decodeMapping(rawPcrs);
         validatePCRs(pcrs, expected_PCRs);
     }
 
-    function t_processSignature(bytes memory sig, bytes memory pubKey, bytes memory payload) external {
+    function t_processSignature(bytes memory sig, bytes memory pubKey, bytes memory payload) external view {
         _processSignature(sig, pubKey, payload);
     }
 
-    function t_validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) external {
+    function t_validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) external pure {
         validatePCRs(pcrs, expected_pcrs);
     }
 
