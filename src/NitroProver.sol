@@ -59,6 +59,26 @@ contract NitroProver is Curve384 {
         emit CertificateVerified(certHash, certificate, certPubKey[certHash], parentCertHash, parentPubKey);
     }
 
+    function verifyCerts(bytes memory attestation) public {
+        bytes[] memory attestation_decoded = CBORDecoding.decodeArray(attestation);
+        bytes memory payload = attestation_decoded[2];
+        bytes memory rawCAbundle = CBORDecoding.decodeMappingGetValue(payload, "cabundle");
+        bytes memory certificate = CBORDecoding.decodeMappingGetValue(payload, "certificate");
+        bytes[] memory cabundle = CBORDecoding.decodeArray(rawCAbundle);
+
+        bytes32 parentCertHash = keccak256(cabundle[0]);
+        require(parentCertHash == ROOT_CA_CERT_HASH, "Root CA cert not matching");
+
+        for(uint256 i=0; i < cabundle.length; i++) {
+            bytes32 certHash = keccak256(cabundle[i]);
+            if (certPubKey[certHash].length == 0) {
+                verifyCert(cabundle[i], parentCertHash);
+            }
+            parentCertHash = certHash;
+        }
+        verifyCert(certificate, parentCertHash);
+    }
+
     function verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) public returns(bytes memory, bytes memory) {
         (bytes memory enclaveKey, bytes memory userData, bytes memory rawPcrs) =
             verifyAttestation(attestation, max_age);
