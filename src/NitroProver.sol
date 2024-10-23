@@ -60,6 +60,14 @@ contract NitroProver is Curve384 {
     }
 
     function verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) public returns(bytes memory, bytes memory) {
+        (bytes memory enclaveKey, bytes memory userData, bytes memory rawPcrs) =
+            verifyAttestation(attestation, max_age);
+        bytes[2][] memory pcrs = CBORDecoding.decodeMapping(rawPcrs);
+        validatePCRs(pcrs, PCRs);
+        return (enclaveKey, userData);
+    }
+
+    function verifyAttestation(bytes memory attestation, uint256 max_age) public returns(bytes memory, bytes memory, bytes memory) {
         /* 
         https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md#31-cose-and-cbor
         Attestation document is an array of 4 elements
@@ -91,7 +99,7 @@ contract NitroProver is Curve384 {
         require(unprotected_header.length == 0, "Unprotected header should be empty");
 
         bytes memory payload = attestation_decoded[2];
-        (bytes memory pubKey, bytes memory enclaveKey, bytes memory userData) = _processAttestationDoc(payload, PCRs, max_age);
+        (bytes memory pubKey, bytes memory enclaveKey, bytes memory userData, bytes memory rawPcrs) = _processAttestationDoc(payload, max_age);
 
         // verify COSE signature as per https://www.rfc-editor.org/rfc/rfc9052.html#section-4.4
         bytes memory attestationSig = attestation_decoded[3];
@@ -111,10 +119,10 @@ contract NitroProver is Curve384 {
         CBOR.writeBytes(buf, payload);
 
         _processSignature(attestationSig, pubKey, buf.buf.buf);
-        return (enclaveKey, userData);
+        return (enclaveKey, userData, rawPcrs);
     }
 
-    function _processAttestationDoc(bytes memory attestation_payload, bytes memory expected_PCRs, uint256 max_age) internal view returns(bytes memory, bytes memory, bytes memory) {
+    function _processAttestationDoc(bytes memory attestation_payload, uint256 max_age) internal view returns(bytes memory, bytes memory, bytes memory, bytes memory) {
         // TODO: validate if this check is expected? https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md?plain=1#L168
         require(attestation_payload.length <= 2**15, "Attestation too long");
 
@@ -175,15 +183,12 @@ contract NitroProver is Curve384 {
 
         require(bytes32(digest) == bytes32("SHA384"), "invalid digest algo");
 
-        bytes[2][] memory pcrs = CBORDecoding.decodeMapping(rawPcrs);
-        _validatePCRs(pcrs, expected_PCRs);
-
         bytes memory pubKey = _verifyCerts(certificate, cabundle);
 
-        return (pubKey, enclave_pub_key, userData);
+        return (pubKey, enclave_pub_key, userData, rawPcrs);
     }
 
-    function _validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) internal view {
+    function validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) public view {
         require(pcrs.length != 0, "no pcr specified");
         require(pcrs.length <= 32, "only 32 pcrs allowed");
         require(expected_pcrs.length >= 4, "pcrs to check invalid");

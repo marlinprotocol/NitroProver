@@ -12,7 +12,9 @@ contract TestMock is NitroProver {
     }
 
     function t_processAttestationDoc(bytes memory attestation_payload, bytes memory expected_PCRs, uint256 max_age) external {
-        _processAttestationDoc(attestation_payload, expected_PCRs, max_age);
+        (,,, bytes memory rawPcrs) = _processAttestationDoc(attestation_payload, max_age);
+        bytes[2][] memory pcrs = CBORDecoding.decodeMapping(rawPcrs);
+        validatePCRs(pcrs, expected_PCRs);
     }
 
     function t_processSignature(bytes memory sig, bytes memory pubKey, bytes memory payload) external {
@@ -20,7 +22,7 @@ contract TestMock is NitroProver {
     }
 
     function t_validatePCRs(bytes[2][] memory pcrs, bytes memory expected_pcrs) external {
-        _validatePCRs(pcrs, expected_pcrs);
+        validatePCRs(pcrs, expected_pcrs);
     }
 
     function t_verifyCerts(bytes memory certificate, bytes memory rawCAbundle) external {
