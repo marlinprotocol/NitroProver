@@ -2,10 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
+import {CertManager} from "../src/CertManager.sol";
 import {NitroProver} from "../src/NitroProver.sol";
 import { CBORDecoding } from "marlinprotocol/solidity-cbor/CBORDecoding.sol";
 
 contract NitroProverScript is Script {
+    CertManager certManager;
     NitroProver nitroProver;
     bytes attestation_doc;
     bytes pcrs;
@@ -15,7 +17,8 @@ contract NitroProverScript is Script {
         uint256 deployerPrivKey = vm.envUint("ARB_SEPOLIA_KEY");
 
         vm.broadcast(deployerPrivKey);
-        nitroProver = new NitroProver();
+        certManager = new CertManager();
+        nitroProver = new NitroProver(certManager);
 
         console.log(address(nitroProver));
 
@@ -43,9 +46,9 @@ contract NitroProverScript is Script {
         bytes32 parentCertHash = keccak256(certs[0]);
         for(uint256 i = 1; i < certs.length; i++) {
             bytes32 certHash = keccak256(certs[i]);
-            if(nitroProver.certPubKey(certHash).length == 0) {
+            if(certManager.certPubKey(certHash).length == 0) {
                 vm.broadcast(deployerPrivKey);
-                nitroProver.verifyCert(certs[i], parentCertHash);
+                certManager.verifyCert(certs[i], parentCertHash);
             }
             parentCertHash = certHash;
         }
