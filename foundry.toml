@@ -7,7 +7,6 @@ fs_permissions = [
     { access = "read", path = "./test/nitro-attestation"},
     { access = "read", path = "./script/attestation.bin"}
 ]
-viaIR = true
 
 [rpc_endpoints]
 arbitrum-sepolia = "https://sepolia-rollup.arbitrum.io/rpc"

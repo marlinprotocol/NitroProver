@@ -79,13 +79,19 @@ contract CertManager is Curve384 {
         uint256 root = certificate.root();
         uint256 tbsCertPtr = certificate.firstChildOf(root);
         // TODO: extract and check issuer and subject hash
-        bytes memory pubKey;
-        (, , pubKey) = _parseTbs(certificate, tbsCertPtr);
+        bytes memory pubKey = _parseTbs(certificate, tbsCertPtr);
         if(parentPubKey.length == 0 && certHash == ROOT_CA_CERT_HASH) return pubKey;
         bytes memory tbs = certificate.allBytesAt(tbsCertPtr);
         uint256 sigAlgoPtr = certificate.nextSiblingOf(tbsCertPtr);
         require(keccak256(certificate.bytesAt(sigAlgoPtr)) == keccak256(CERT_ALGO_OID), "invalid cert sig algo");
 
+        bytes memory sigPacked = packSig(certificate, sigAlgoPtr);
+
+        verifyES384WithSHA384(parentPubKey, tbs, sigPacked);
+        return pubKey;
+    }
+
+    function packSig(bytes memory certificate, uint256 sigAlgoPtr) internal pure returns(bytes memory) {
         uint256 sigPtr = certificate.nextSiblingOf(sigAlgoPtr);
         bytes memory sig = certificate.bitstringAt(sigPtr);
         uint256 sigRoot = sig.root();
@@ -94,20 +100,17 @@ contract CertManager is Curve384 {
         uint256 sigYPtr = sig.nextSiblingOf(sigXPtr);
         bytes memory sigY = sig.uintBytesAt(sigYPtr);
 
-        bytes memory sigPacked = abi.encodePacked(pad(sigX, 48), pad(sigY, 48));
-
-        verifyES384WithSHA384(parentPubKey, tbs, sigPacked);
-        return pubKey;
+        return abi.encodePacked(pad(sigX, 48), pad(sigY, 48));
     }
 
-    function pad(bytes memory b, uint256 l) public pure returns(bytes memory) {
+    function pad(bytes memory b, uint256 l) internal pure returns(bytes memory) {
         require(b.length <= l, "");
         if(b.length == l) return b;
         bytes memory padding = new bytes(l - b.length);
         return abi.encodePacked(padding, b);
     }
 
-    function _parseTbs(bytes memory certificate, uint256 ptr) internal view returns(bytes32 issuerHash, bytes32 subjectHash, bytes memory pubKey) {
+    function _parseTbs(bytes memory certificate, uint256 ptr) internal view returns(bytes memory pubKey) {
         uint256 versionPtr = certificate.firstChildOf(ptr);
         uint256 vPtr = certificate.firstChildOf(versionPtr);
         uint256 version = certificate.uintAt(vPtr);
@@ -120,6 +123,10 @@ contract CertManager is Curve384 {
         uint256 sigAlgoPtr = certificate.nextSiblingOf(serialPtr);
         require(keccak256(certificate.bytesAt(sigAlgoPtr)) == keccak256(CERT_ALGO_OID), "invalid cert sig algo");
 
+        pubKey = _parseTbs2(certificate, sigAlgoPtr);
+    }
+
+    function _parseTbs2(bytes memory certificate, uint256 sigAlgoPtr) internal view returns (bytes memory pubKey) {
         uint256 issuerPtr = certificate.nextSiblingOf(sigAlgoPtr);
         // TODO: add checks on issuer
 
