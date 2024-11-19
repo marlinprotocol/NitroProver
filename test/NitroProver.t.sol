@@ -3,17 +3,17 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {CertManager} from "../src/CertManager.sol";
-import { TestMock } from "../src/mock/TestMock.sol";
+import {NitroProverMock} from "../src/mock/NitroProverMock.sol";
 
-contract CounterTest is Test {
-    CertManager certManager;
-    TestMock nitroProverTest;
-    bytes attestation_doc;
+contract NitroProverTest is Test {
+    CertManager internal certManager;
+    NitroProverMock internal nitroProverTest;
+    bytes internal attestation_doc;
 
     function setUp() public {
         vm.warp(1708930774);
         certManager = new CertManager();
-        nitroProverTest = new TestMock(certManager);
+        nitroProverTest = new NitroProverMock(certManager);
         attestation_doc = vm.readFileBinary("./test/nitro-attestation/sample_attestation.bin");
     }
 
@@ -87,5 +87,9 @@ contract CounterTest is Test {
         pcrs[14] = [bytes(hex"0e"), bytes(hex"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")];
         pcrs[15] = [bytes(hex"0f"), bytes(hex"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")];
         nitroProverTest.t_validatePCRs(pcrs, expected_pcrs);
+    }
+
+    function test_verifyCerts() public {
+        nitroProverTest.t_verifyCerts(attestation_doc);
     }
 }

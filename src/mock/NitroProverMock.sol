@@ -5,7 +5,7 @@ import { console2 } from "forge-std/console2.sol";
 import "../CertManager.sol";
 import "../NitroProver.sol";
 
-contract TestMock is NitroProver {
+contract NitroProverMock is NitroProver {
     constructor(CertManager certManager) NitroProver(certManager) {}
 
     function t_verifyAttestation(bytes memory attestation, bytes memory PCRs, uint256 max_age) external view {
@@ -26,15 +26,7 @@ contract TestMock is NitroProver {
         validatePCRs(pcrs, expected_pcrs);
     }
 
-//    function t_verifyCerts(bytes memory certificate, bytes memory rawCAbundle) external {
-//        _verifyCerts(certificate, rawCAbundle);
-//    }
-//
-//    function t_verifyCert(bytes memory certificate, bytes memory pubKey) external {
-//        _verifyCert(certificate, pubKey);
-//    }
-//
-//    function t_parseTbs(bytes memory certificate, uint256 ptr) external {
-//        _parseTbs(certificate, ptr);
-//    }
+    function t_verifyCerts(bytes memory attestation) external {
+        verifyCerts(attestation);
+    }
 }
