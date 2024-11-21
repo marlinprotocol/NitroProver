@@ -9,7 +9,7 @@
 	url = https://github.com/marlinprotocol/SolSha2Ext
 [submodule "lib/solidity-cbor"]
 	path = lib/solidity-cbor
-	url = https://github.com/mdehoog/solidity-cbor
+	url = https://github.com/marlinprotocol/solidity-cbor
 [submodule "lib/buffer"]
 	path = lib/buffer
 	url = https://github.com/ensdomains/buffer
