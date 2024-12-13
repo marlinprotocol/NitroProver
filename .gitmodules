@@ -10,3 +10,6 @@
 [submodule "lib/buffer"]
 	path = lib/buffer
 	url = https://github.com/ensdomains/buffer
+[submodule "lib/solidity-lib"]
+	path = lib/solidity-lib
+	url = https://github.com/dl-solarity/solidity-lib
