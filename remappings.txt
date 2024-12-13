@@ -1,5 +1,5 @@
 marlinprotocol/solidity-cbor/=lib/solidity-cbor/packages/solidity-cbor/contracts/
 forge-std/=lib/forge-std/src/
-marlinprotocol/P384/=lib/P384/contracts/
+dl-solarity/solidity-lib/=lib/solidity-lib/contracts/
 marlinprotocol/SolSha2Ext/=lib/SolSha2Ext/contracts/lib/
 @ensdomains/buffer/=lib/buffer/

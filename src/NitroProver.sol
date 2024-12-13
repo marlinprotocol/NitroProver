@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { console2 } from "forge-std/console2.sol";
 
-import { Curve384 } from "marlinprotocol/P384/Curve384.sol";
+import { ECDSA384 } from "dl-solarity/solidity-lib/libs/crypto/ECDSA384.sol";
 import { Sha2Ext } from "marlinprotocol/SolSha2Ext/Sha2Ext.sol";
 import { LibBytes } from "marlinprotocol/SolSha2Ext/LibBytes.sol";
 import { CBORDecoding } from "marlinprotocol/solidity-cbor/CBORDecoding.sol";
@@ -19,8 +19,20 @@ import { CertManager } from "./CertManager.sol";
 // @dev Implements verification based on AWS nitro attestation process at 
 //      https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html and
 //      https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md
-contract NitroProver is Curve384 {
+contract NitroProver {
     using Asn1Decode for bytes;
+
+    // @dev curve parameters for P384 as per section 3.2.1.4 of https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-186.pdf
+    // @dev lowSmax is the maximum value of s for a valid signature. It is half of the order of the curve.
+    ECDSA384.Parameters public ECDSA384_PARAMS = ECDSA384.Parameters({
+        a: bytes("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000fffffffc"),
+        b: bytes("0xb3312fa7e23ee7e4988e056be3f82d19181d9c6efe8141120314088f5013875ac656398d8a2ed19d2a85c8edd3ec2aef"),
+        gx: bytes("0xaa87ca22be8b05378eb1c71ef320ad746e1d3b628ba79b9859f741e082542a385502f25dbf55296c3a545e3872760ab7"),
+        gy: bytes("0x3617de4a96262c6f5d9e98bf9292dc29f8f41dbd289a147ce9da3113b5f0b8c00a60b1ce1d7e819d7a431d7c90ea0e5f"),
+        p: bytes("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000ffffffff"),
+        n: bytes("0xffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973"),
+        lowSmax: bytes("0x7fffffffffffffffffffffffffffffffffffffffffffffffe3b1a6c0fa1b96efac0d06d9245853bd76760cb5666294b9")
+    });
 
     CertManager public immutable certManager;
 
@@ -206,22 +218,7 @@ contract NitroProver is Curve384 {
         require(pk.length == 97, "invalid pub key length");
         require(sig.length == 96, "invalid sig length");
         (bytes16 mhi, bytes32 mlo) = Sha2Ext.sha384(message);
-        C384Elm memory pub = _parsePubKey(pk);
-        (uint256 rhi, uint256 rlo, uint256 shi, uint256 slo) = _parseSig(sig);
-        require(verify(pub, uint256(bytes32(abi.encodePacked(bytes16(0), mhi))), uint256(mlo), rhi, rlo, shi, slo), "invalid sig");
-    }
-
-    function _parsePubKey(bytes memory pk) private pure returns(C384Elm memory pub) {
-        pub.xhi = uint256(bytes32(abi.encodePacked(bytes16(0), bytes16(LibBytes.slice(pk, 1, 17)))));
-        pub.xlo = uint256(bytes32(LibBytes.slice(pk, 17, 49)));
-        pub.yhi = uint256(bytes32(abi.encodePacked(bytes16(0), bytes16(LibBytes.slice(pk, 49, 65)))));
-        pub.ylo = uint256(bytes32(LibBytes.slice(pk, 65, 97)));
-    }
-
-    function _parseSig(bytes memory sig) private pure returns(uint256 rhi, uint256 rlo, uint256 shi, uint256 slo) {
-        rhi = uint256(bytes32(abi.encodePacked(bytes16(0), bytes16(LibBytes.slice(sig, 0, 16)))));
-        rlo = uint256(bytes32(LibBytes.slice(sig, 16, 48)));
-        shi = uint256(bytes32(abi.encodePacked(bytes16(0), bytes16(LibBytes.slice(sig, 48, 64)))));
-        slo = uint256(bytes32(LibBytes.slice(sig, 64, 96)));
+        pk = LibBytes.slice(pk, 1, pk.length);
+        require(ECDSA384.verify(ECDSA384_PARAMS, , sig, pk), "invalid sig");
     }
 }
